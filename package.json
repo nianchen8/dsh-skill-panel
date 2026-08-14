@@ -5,7 +5,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/nianchen8/dsh-skill-panel.git"
+    "url": "git+https://github.com/nianchen8/dsh-skill-panel.git"
   },
   "type": "module",
   "main": "index.js",
