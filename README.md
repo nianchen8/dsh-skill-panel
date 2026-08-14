@@ -25,7 +25,7 @@ Built entirely on the harness's public plugin surface — a Typert Remote servic
 ```sh
 corepack enable                                   # once per machine
 dsh plugin --profile web add dsh-skill-panel     # from npm
-# or: dsh plugin --profile web add github:<you>/dsh-skill-panel
+# or: dsh plugin --profile web add github:nianchen8/dsh-skill-panel
 dsh web                                           # restart to load the package
 ```
 
