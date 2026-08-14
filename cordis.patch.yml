@@ -1,0 +1,5 @@
+# dsh-skill-panel bundle patch: mounts the node half so the host Loader
+# carries this package, letting client-modules scan its dsh.client declaration.
+- insert:
+    - id: skill-panel
+      name: dsh-skill-panel

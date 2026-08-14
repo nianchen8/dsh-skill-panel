@@ -1,0 +1,33 @@
+{
+  "name": "dsh-skill-panel",
+  "version": "1.0.0",
+  "description": "Skill management panel for the dsh web app",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nianchen8/dsh-skill-panel.git"
+  },
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime"
+      ]
+    }
+  }
+}
