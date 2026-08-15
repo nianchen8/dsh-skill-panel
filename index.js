@@ -11,6 +11,43 @@ export const name = 'skill-panel'
 // when fs/subprocess are absent (checked per call with ctx.get).
 export const inject = ['skills', 'agents']
 
+// Entry placement defaults. There is no "append" primitive in the slot
+// mechanism: list slots sort by priority then order (ascending, stable, order
+// defaults to 0), so "tail" has to be computed against the slot's LIVE entries
+// at registration time (max existing order + 1) — that happens in the browser
+// half. This host half only carries deployment OVERRIDES: `order` present means
+// "register at this exact position", absent means "tail". Deployments override
+// through the loader entry `config` (shape: { entries: { sidebar|overlay|
+// settings: { enabled?, order?, slot? } } }); getConfig exposes the resolved
+// values to the browser half.
+const DEFAULT_ENTRIES = {
+  sidebar: { enabled: true, slot: 'sidebar.footer.action' },
+  overlay: { enabled: true, slot: 'shell.overlay' },
+  settings: { enabled: true, slot: 'settings.section' },
+}
+
+/** Normalize a user-supplied `entries` config against the defaults. */
+function normalizeEntries(config) {
+  const raw = config !== null && typeof config === 'object' ? config.entries : undefined
+  const out = {}
+  for (const key of Object.keys(DEFAULT_ENTRIES)) {
+    const base = DEFAULT_ENTRIES[key]
+    const row = raw !== undefined && raw !== null && typeof raw === 'object'
+      && raw[key] !== undefined && raw[key] !== null && typeof raw[key] === 'object'
+      ? raw[key]
+      : {}
+    const entry = {
+      enabled: typeof row.enabled === 'boolean' ? row.enabled : base.enabled,
+      slot: typeof row.slot === 'string' && row.slot !== '' ? row.slot : base.slot,
+    }
+    // `order` is only carried when the deployment set it: absent means the
+    // browser half registers at the dynamic tail of the slot.
+    if (typeof row.order === 'number' && Number.isFinite(row.order)) entry.order = row.order
+    out[key] = entry
+  }
+  return out
+}
+
 /** Copy one catalog entry into owned, wire-safe JSON (never live objects). */
 function leafOf(s) {
   return {
@@ -87,8 +124,21 @@ function rewriteFrontmatter(raw, wantModel, wantUser, origin) {
 }
 
 class SkillPanelService extends TypertRemoteService {
-  constructor(ctx) {
+  constructor(ctx, config) {
     super(ctx, 'skillPanel')
+    this.entries = normalizeEntries(config)
+  }
+
+  /**
+   * Resolved entry placement for this deployment (order absent = the browser
+   * half registers that entry at the slot's dynamic tail).
+   * @param request - unused; kept for the gateway's signature reflection.
+   */
+  async getConfig(request) {
+    // The gateway derives the wire shape from this signature, so the single
+    // `request` parameter must stay even though getConfig takes no input.
+    void request
+    return { entries: this.entries }
   }
 
   /** The scoped view for one session id, or null when unresolvable. */
@@ -366,7 +416,7 @@ class SkillPanelService extends TypertRemoteService {
 // (source-mode reflection) — every Remote method above must keep its single
 // parameter named `request`, or the endpoint breaks.
 const markerInitializers = []
-for (const method of ['listDetailed', 'getDetail', 'setInvocation', 'setDisabled', 'uninstall']) {
+for (const method of ['getConfig', 'listDetailed', 'getDetail', 'setInvocation', 'setDisabled', 'uninstall']) {
   Remote(method)(SkillPanelService.prototype, {
     name: method,
     private: false,
@@ -375,7 +425,7 @@ for (const method of ['listDetailed', 'getDetail', 'setInvocation', 'setDisabled
   })
 }
 
-export function apply(ctx) {
-  const service = new SkillPanelService(ctx)
+export function apply(ctx, config) {
+  const service = new SkillPanelService(ctx, config)
   for (const init of markerInitializers) init.call(service)
 }

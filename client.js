@@ -136,7 +136,7 @@ window.__ModuleLoader__.load({
     }
 
     /** Unary RPC against a Typert Remote endpoint (skillPanel/*). */
-    const panelRpc = (method, args) => {
+    const panelRpc = (method, args, timeoutMs = 30000) => {
       const message = {
         type: "client-request",
         rpcId: newRpcId(),
@@ -144,7 +144,7 @@ window.__ModuleLoader__.load({
         payload: { args },
       }
       const signal = typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
-        ? AbortSignal.timeout(30000)
+        ? AbortSignal.timeout(timeoutMs)
         : undefined
       return fetch("/api/" + method, {
         method: "POST",
@@ -169,7 +169,60 @@ window.__ModuleLoader__.load({
       return "未知错误"
     }
 
-    function apply(ctx) {
+    // Entry placement: `order` present = register at that exact position;
+    // absent = register at the slot's dynamic TAIL (max existing order + 1),
+    // so a fresh deployment lands after whatever entries already occupy the
+    // slot, no matter how many there are or what orders they use.
+    const DEFAULT_ENTRIES = {
+      sidebar: { enabled: true, slot: "sidebar.footer.action" },
+      overlay: { enabled: true, slot: "shell.overlay" },
+      settings: { enabled: true, slot: "settings.section" },
+    }
+    const normalizeEntries = (config) => {
+      const raw = config !== null && typeof config === "object" ? config.entries : undefined
+      const out = {}
+      for (const key of Object.keys(DEFAULT_ENTRIES)) {
+        const base = DEFAULT_ENTRIES[key]
+        const row = raw !== undefined && raw !== null && typeof raw === "object"
+          && raw[key] !== undefined && raw[key] !== null && typeof raw[key] === "object"
+          ? raw[key]
+          : {}
+        const entry = {
+          enabled: typeof row.enabled === "boolean" ? row.enabled : base.enabled,
+          slot: typeof row.slot === "string" && row.slot !== "" ? row.slot : base.slot,
+        }
+        if (typeof row.order === "number" && Number.isFinite(row.order)) entry.order = row.order
+        out[key] = entry
+      }
+      return out
+    }
+
+    /** Resolve the deployment's entry placement; defaults on any failure. */
+    const loadEntries = async () => {
+      try {
+        const result = await panelRpc("skillPanel/getConfig", { request: {} }, 5000)
+        if (result !== null && typeof result === "object" && result.entries !== undefined) {
+          return normalizeEntries(result)
+        }
+      } catch { /* host half may predate getConfig — fall through to defaults */ }
+      return normalizeEntries(null)
+    }
+
+    /** Register one entry; order absent = dynamic tail of the slot's live entries. */
+    const mountEntry = (slots, entry) => {
+      if (!entry.enabled) return
+      slots.inject(entry.slot, () => {
+        const order = entry.order !== undefined ? entry.order : (() => {
+          const orders = slots.entries(entry.slot).map((e) => e.options.order ?? 0)
+          return orders.length === 0 ? 0 : Math.max(...orders) + 1
+        })()
+        const options = { name: entry.slot, id: entry.id, order }
+        if (entry.label !== undefined) options.label = entry.label
+        return slots.register(options, entry.component)
+      })
+    }
+
+    async function apply(ctx) {
       const slots = ctx.get("slots")
       if (slots === undefined) return
 
@@ -424,32 +477,38 @@ window.__ModuleLoader__.load({
         )
       }
 
-      slots.inject("sidebar.footer.action", () => slots.register(
-        { name: "sidebar.footer.action", id: "skills-panel", order: 20, label: "Skills" },
-        (props) => React.createElement("button", {
+      const entries = await loadEntries()
+      mountEntry(slots, {
+        ...entries.sidebar,
+        id: "skills-panel",
+        label: "Skills",
+        component: (props) => React.createElement("button", {
           className: "skp-btn" + (useOpen() ? " skp-btn-active" : ""),
           title: "Skill 管理面板",
           "aria-label": "Skill 管理面板",
           onClick: () => setOpen(!open),
         }, icon(BOOK), props.wide ? React.createElement("span", { className: "skp-btn-label" }, "Skills") : null),
-      ))
+      })
 
-      slots.inject("shell.overlay", () => slots.register(
-        { name: "shell.overlay", id: "skills-panel-overlay", order: 20 },
-        (props) => React.createElement(SkillsPanel, {
+      mountEntry(slots, {
+        ...entries.overlay,
+        id: "skills-panel-overlay",
+        component: (props) => React.createElement(SkillsPanel, {
           variant: "modal",
           onClose: () => setOpen(false),
           useSessions: props.useSessions,
         }),
-      ))
+      })
 
-      slots.inject("settings.section", () => slots.register(
-        { name: "settings.section", id: "skills", order: 25, label: "Skills" },
-        (props) => React.createElement(SkillsPanel, {
+      mountEntry(slots, {
+        ...entries.settings,
+        id: "skills",
+        label: "Skills",
+        component: (props) => React.createElement(SkillsPanel, {
           variant: "page",
           useSessions: props.useSessions,
         }),
-      ))
+      })
     }
 
     return { inject, apply }
