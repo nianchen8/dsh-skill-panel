@@ -2,7 +2,7 @@
 
 A skill management panel for the [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) web app: browse, search, filter, enable/disable, and uninstall your agent skills from the settings page or the sidebar.
 
-Built entirely on the harness's public plugin surface — a Typert Remote service on the host half, slot-registered React UI on the browser half. No forks, no internal APIs, no build step (pure JS, zero dependencies).
+Built entirely on the harness's public plugin surface — a Typert Remote service on the host half, slot-registered React UI on the browser half. No forks, no internal APIs, no build step (pure JS); runtime imports are limited to the harness-provided `@deepseek-ai/dsh-storage-domain` and `zod` (declared as dependencies).
 
 ## Features
 
@@ -12,6 +12,7 @@ Built entirely on the harness's public plugin surface — a Typert Remote servic
 - **Disable / Enable** button — fully disables a skill while remembering its previous state, and restores exactly that state on enable
 - **Uninstall** with two-step confirm (deletes the skill directory, bundled skills are protected)
 - Detail view with `whenToUse`, on-disk path, and the SKILL.md body
+- **Skill groups** — create / rename / delete groups, manage membership per group (add / remove skills), browse skills grouped; persisted through the official `ctx.storageDomain` (no self-made storage files)
 - All reads are session-scoped — the panel shows exactly the catalog your current session serves
 - Writes invalidate discovery synchronously, and the slash-menu cache is refreshed through the official forwarded events
 
@@ -46,7 +47,7 @@ host skill registry  ── snapshot({cwd, scope: agent}) ──► SkillPanelSe
                                               Settings page · sidebar button · overlay
 ```
 
-- **Host half** (`index.js`): a `TypertRemoteService` with six Remote endpoints — `getConfig`, `listDetailed`, `getDetail`, `setInvocation`, `setDisabled`, `uninstall`. Reads resolve the session-scoped skill view (same catalog the model sees); writes rewrite SKILL.md frontmatter or delete the skill directory, then emit `fs/observed` for synchronous discovery invalidation and replay `agent-preset/selected` so the official slash menu drops its cached catalog.
+- **Host half** (`index.js`): a `TypertRemoteService` with twelve Remote endpoints — `getConfig`, `listDetailed`, `getDetail`, `setInvocation`, `setDisabled`, `uninstall`, plus the group CRUD `groupList`, `groupCreate`, `groupUpdate`, `groupDelete`, `groupAddSkill`, `groupRemoveSkill`. Reads resolve the session-scoped skill view (same catalog the model sees); writes rewrite SKILL.md frontmatter or delete the skill directory, then emit `fs/observed` for synchronous discovery invalidation and replay `agent-preset/selected` so the official slash menu drops its cached catalog. Groups live in a `ctx.storageDomain` domain (`skill_groups`), opened lazily and closed on unload; when storage is unavailable the panel degrades to a read-only group view.
 - **Browser half** (`client.js`): plain React via the platform module table, registered into `sidebar.footer.action`, `shell.overlay`, and `settings.section`. All data crosses the standard API gateway over `/api/skillPanel/<method>`.
 
 ## Placement configuration

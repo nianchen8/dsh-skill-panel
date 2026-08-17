@@ -1,6 +1,6 @@
 {
   "name": "dsh-skill-panel",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Skill management panel for the dsh web app",
   "license": "MIT",
   "repository": {
@@ -19,6 +19,10 @@
     "client.js",
     "cordis.patch.yml"
   ],
+  "dependencies": {
+    "@deepseek-ai/dsh-storage-domain": "^0.1.0-rc.6",
+    "zod": "^4.4.3"
+  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
