@@ -5,6 +5,8 @@
 // host Loader and exposes its Remote endpoints through the Typert gateway.
 import { TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
 import { dirname } from 'node:path'
+import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain'
+import z from 'zod'
 
 export const name = 'skill-panel'
 // Core read path is a hard dependency; the write operations degrade gracefully
@@ -12,7 +14,7 @@ export const name = 'skill-panel'
 export const inject = ['skills', 'agents']
 
 /** Copy one catalog entry into owned, wire-safe JSON (never live objects). */
-function leafOf(s) {
+function leafOf(s, groups) {
   return {
     name: s.name,
     description: s.description,
@@ -22,6 +24,7 @@ function leafOf(s) {
     path: s.path === undefined ? null : s.path,
     modelInvocable: s.invocation.modelInvocable,
     userInvocable: s.invocation.userInvocable,
+    groups: Array.isArray(groups) ? groups.slice() : [],
   }
 }
 
@@ -86,9 +89,52 @@ function rewriteFrontmatter(raw, wantModel, wantUser, origin) {
   return [parsed.lines[0], ...kept, ...parsed.lines.slice(parsed.close)].join('\n')
 }
 
+// ── skill groups: plugin-owned domain data (ctx.storageDomain) ─────────
+// "组" 是 dsh-skill-panel 插件自己的数据，通过 dsh 官方领域存储
+// (ctx.storageDomain) 持久化，不触碰 skill 文件、不自造存储文件：
+//   - groups 表: 组名 → { description }
+//   - membership 表: skill 名 → 所属组名数组（一个 skill 可属于多个组）
+const GROUP_DOMAIN = defineDomain({
+  name: 'skill_groups',
+  version: 1,
+  tables: {
+    groups: domainTable(z.object({ description: z.string() })),
+    membership: domainTable(z.array(z.string())),
+  },
+})
+
+/** Trim one request string field to a non-empty value or ''. */
+function reqStr(request, key) {
+  const v = request === undefined || request === null ? undefined : request[key]
+  return typeof v === 'string' ? v.trim() : ''
+}
+
 class SkillPanelService extends TypertRemoteService {
   constructor(ctx) {
     super(ctx, 'skillPanel')
+    this._domainPromise = undefined
+  }
+
+  /**
+   * Open the group domain once, lazily. Returns the domain handle, or null
+   * when the storage facility is absent or open fails (panel degrades to
+   * read-only group views).
+   */
+  ensureDomain() {
+    if (this._domainPromise === undefined) {
+      const facility = this.ctx.get('storageDomain')
+      this._domainPromise = facility === undefined
+        ? Promise.resolve(null)
+        : facility.open(GROUP_DOMAIN).catch(() => null)
+    }
+    return this._domainPromise
+  }
+
+  /** skill name → its groups, as a plain Map (empty when storage is unavailable). */
+  async membershipMap() {
+    const domain = await this.ensureDomain()
+    if (domain === null) return new Map()
+    return new Map(domain.table('membership').entries())
   }
 
   /** The scoped view for one session id, or null when unresolvable. */
@@ -144,10 +190,11 @@ class SkillPanelService extends TypertRemoteService {
 
     const sessionId = request === undefined || request === null ? null : request.sessionId
     const viewOf = (agent) => ({ cwd: agent.session.header.cwd, scope: agent })
+    const membership = await this.membershipMap()
 
     /** Resolve each entry's on-disk path through a scoped get (summaries omit it). */
     const withPaths = async (entries, view) => Promise.all(entries.map(async (entry) => {
-      const leaf = leafOf(entry)
+      const leaf = leafOf(entry, membership.get(entry.name))
       try {
         const def = await skills.get(entry.name, view)
         if (def !== undefined && typeof def.path === 'string' && def.path !== '') {
@@ -203,9 +250,10 @@ class SkillPanelService extends TypertRemoteService {
   async getDetail(request) {
     const def = await this.resolveDefinition(request.name, request.sessionId)
     if (def === undefined || def === null) return { skill: null, error: 'skill 不存在' }
+    const membership = await this.membershipMap()
     return {
       skill: {
-        ...leafOf(def),
+        ...leafOf(def, membership.get(def.name)),
         content: String(def.content === undefined ? '' : def.content).slice(0, 50000),
       },
     }
@@ -357,6 +405,120 @@ class SkillPanelService extends TypertRemoteService {
       return { ok: false, error: '卸载失败: ' + String((error && error.message) || error) }
     }
   }
+
+  /** List every group with its member skill names (in definition order). */
+  async groupList(request) {
+    const domain = await this.ensureDomain()
+    if (domain === null) return { groups: [], error: 'storage 服务不可用' }
+    const groups = []
+    for (const [name, rec] of domain.table('groups').entries()) {
+      groups.push({ name, description: rec.description, members: [] })
+    }
+    for (const [skillName, gs] of domain.table('membership').entries()) {
+      for (const g of gs) {
+        const entry = groups.find((x) => x.name === g)
+        if (entry !== undefined) entry.members.push(skillName)
+      }
+    }
+    return { groups }
+  }
+
+  /** Create a group by name; description is optional. */
+  async groupCreate(request) {
+    const name = reqStr(request, 'name')
+    if (name === '') return { ok: false, error: '组名不能为空' }
+    const domain = await this.ensureDomain()
+    if (domain === null) return { ok: false, error: 'storage 服务不可用' }
+    const groupsTable = domain.table('groups')
+    if (groupsTable.get(name) !== undefined) return { ok: false, error: '组「' + name + '」已存在' }
+    await groupsTable.put(name, { description: reqStr(request, 'description') })
+    return { ok: true }
+  }
+
+  /** Rename a group and/or change its description; membership keys follow. */
+  async groupUpdate(request) {
+    const name = reqStr(request, 'name')
+    if (name === '') return { ok: false, error: '组名不能为空' }
+    const domain = await this.ensureDomain()
+    if (domain === null) return { ok: false, error: 'storage 服务不可用' }
+    const groupsTable = domain.table('groups')
+    const current = groupsTable.get(name)
+    if (current === undefined) return { ok: false, error: '组「' + name + '」不存在' }
+    const newName = reqStr(request, 'newName') || name
+    const description = typeof (request === undefined || request === null ? undefined : request.description) === 'string'
+      ? request.description.trim()
+      : current.description
+    if (newName !== name) {
+      if (groupsTable.get(newName) !== undefined) return { ok: false, error: '组「' + newName + '」已存在' }
+      await groupsTable.put(newName, { description })
+      await groupsTable.delete(name)
+      const membershipTable = domain.table('membership')
+      for (const [skillName, gs] of membershipTable.entries()) {
+        if (gs.includes(name)) await membershipTable.put(skillName, gs.map((g) => (g === name ? newName : g)))
+      }
+    } else {
+      await groupsTable.put(name, { description })
+    }
+    return { ok: true }
+  }
+
+  /** Delete a group and remove it from every member skill. */
+  async groupDelete(request) {
+    const name = reqStr(request, 'name')
+    if (name === '') return { ok: false, error: '组名不能为空' }
+    const domain = await this.ensureDomain()
+    if (domain === null) return { ok: false, error: 'storage 服务不可用' }
+    const groupsTable = domain.table('groups')
+    if (groupsTable.get(name) === undefined) return { ok: false, error: '组「' + name + '」不存在' }
+    await groupsTable.delete(name)
+    const membershipTable = domain.table('membership')
+    for (const [skillName, gs] of membershipTable.entries()) {
+      if (gs.includes(name)) {
+        const next = gs.filter((g) => g !== name)
+        if (next.length === 0) await membershipTable.delete(skillName)
+        else await membershipTable.put(skillName, next)
+      }
+    }
+    return { ok: true }
+  }
+
+  /** Add one skill to one group (validated against the scoped catalog). */
+  async groupAddSkill(request) {
+    const name = reqStr(request, 'name')
+    const skillName = reqStr(request, 'skillName')
+    if (name === '') return { ok: false, error: '组名不能为空' }
+    if (skillName === '') return { ok: false, error: 'skill 名称不能为空' }
+    const domain = await this.ensureDomain()
+    if (domain === null) return { ok: false, error: 'storage 服务不可用' }
+    if (domain.table('groups').get(name) === undefined) return { ok: false, error: '组「' + name + '」不存在' }
+    if (this.ctx.get('skills') !== undefined) {
+      const def = await this.resolveDefinition(skillName, request === undefined || request === null ? undefined : request.sessionId)
+      if (def === undefined || def === null) return { ok: false, error: 'skill「' + skillName + '」不存在' }
+    }
+    const membershipTable = domain.table('membership')
+    const list = membershipTable.get(skillName) ?? []
+    if (!list.includes(name)) {
+      await membershipTable.put(skillName, [...list, name])
+    }
+    return { ok: true }
+  }
+
+  /** Remove one skill from one group. */
+  async groupRemoveSkill(request) {
+    const name = reqStr(request, 'name')
+    const skillName = reqStr(request, 'skillName')
+    if (name === '' || skillName === '') return { ok: false, error: '参数不完整' }
+    const domain = await this.ensureDomain()
+    if (domain === null) return { ok: false, error: 'storage 服务不可用' }
+    const membershipTable = domain.table('membership')
+    const list = membershipTable.get(skillName)
+    if (list === undefined) return { ok: true, unchanged: true }
+    const next = list.filter((g) => g !== name)
+    if (next.length === list.length) return { ok: true, unchanged: true }
+    if (next.length === 0) await membershipTable.delete(skillName)
+    else await membershipTable.put(skillName, next)
+    return { ok: true }
+  }
 }
 
 // Hand-rolled equivalent of TS `@Remote('...')` decorators: the decorator's
@@ -366,7 +528,7 @@ class SkillPanelService extends TypertRemoteService {
 // (source-mode reflection) — every Remote method above must keep its single
 // parameter named `request`, or the endpoint breaks.
 const markerInitializers = []
-for (const method of ['listDetailed', 'getDetail', 'setInvocation', 'setDisabled', 'uninstall']) {
+for (const method of ['listDetailed', 'getDetail', 'setInvocation', 'setDisabled', 'uninstall', 'groupList', 'groupCreate', 'groupUpdate', 'groupDelete', 'groupAddSkill', 'groupRemoveSkill']) {
   Remote(method)(SkillPanelService.prototype, {
     name: method,
     private: false,
@@ -378,4 +540,12 @@ for (const method of ['listDetailed', 'getDetail', 'setInvocation', 'setDisabled
 export function apply(ctx) {
   const service = new SkillPanelService(ctx)
   for (const init of markerInitializers) init.call(service)
+  // 插件卸载时关闭打开的 domain（懒打开可能尚未完成，用 promise 链等待）。
+  ctx.effect(() => () => {
+    if (service._domainPromise !== undefined) {
+      service._domainPromise.then((domain) => {
+        if (domain !== null && domain !== undefined) domain.close().catch(() => {})
+      }).catch(() => {})
+    }
+  })
 }

@@ -4,20 +4,31 @@ window.__ModuleLoader__.load({
     const React = require("react")
 
     const CSS = `
+[class*="footerActions"] { flex-direction: column; }
 .skp-btn {
   display: flex; align-items: center; gap: 8px;
   height: 36px; padding: 0 10px; width: 100%;
+  margin: 4px -4px;
   background: transparent; border: none; cursor: pointer;
   color: var(--dsw-alias-label-secondary);
   font: inherit; font-size: 13px;
   border-radius: 8px;
 }
+.skp-btn-rail {
+  width: 36px; height: 36px;
+  justify-content: center; gap: 0; padding: 0;
+  border-radius: 50%;
+  margin: 8px 0 10px;
+}
+.skp-btn-rail:hover { color: var(--dsw-alias-label-primary); }
+.skp-btn-rail.skp-btn-active { color: var(--dsw-alias-brand-primary); }
 .skp-btn:hover { background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); }
 .skp-btn-active { color: var(--dsw-alias-brand-primary); }
 .skp-btn svg { flex: none; }
 .skp-btn-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .skp-panel {
   position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  z-index: 1000;
   width: min(880px, calc(100vw - 48px));
   height: min(78vh, 680px);
   display: flex; flex-direction: column;
@@ -29,6 +40,8 @@ window.__ModuleLoader__.load({
   overflow: hidden;
   pointer-events: auto;
   font: inherit;
+  box-sizing: border-box;
+  min-width: 0;
 }
 .skp-page {
   display: flex; flex-direction: column;
@@ -71,8 +84,8 @@ window.__ModuleLoader__.load({
 .skp-row { padding: 10px 12px; border-radius: 8px; display: flex; flex-direction: column; gap: 4px; max-width: 860px; }
 .skp-row + .skp-row { border-top: 1px solid var(--dsw-alias-border-l1); border-radius: 0; }
 .skp-row:hover { background: var(--dsw-alias-bg-layer-1); }
-.skp-row-top { display: flex; align-items: center; gap: 8px; }
-.skp-name { font-weight: 600; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.skp-row-top { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; }
+.skp-name { flex: 1 1 100%; min-width: 0; font-weight: 600; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .skp-name:hover { color: var(--dsw-alias-brand-primary); }
 .skp-sw {
   flex: none; font-size: 11px; line-height: 1; padding: 3px 8px; border-radius: 999px;
@@ -109,8 +122,44 @@ window.__ModuleLoader__.load({
 }
 .skp-notice { margin: 10px 0 0; padding: 7px 12px; border-radius: 8px; font-size: 12.5px; overflow-wrap: anywhere; max-width: 860px; }
 .skp-notice-err { color: var(--dsw-alias-state-error-primary); background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 12%, transparent); }
+.skp-groups { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.skp-tag {
+  font-size: 11px; color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-bg-layer-1); border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 999px; padding: 1px 8px;
+}
+.skp-toolbar { display: flex; gap: 6px; align-items: center; padding: 10px 0 2px; flex-wrap: wrap; }
+.skp-select { min-width: 0; max-width: 320px; }
+.skp-member { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
 .skp-empty, .skp-err { padding: 28px 12px; text-align: center; font-size: 13px; color: var(--dsw-alias-label-secondary); }
 .skp-err { color: var(--dsw-alias-state-error-primary); }
+@media (max-width: 700px) {
+  .skp-panel {
+    left: 50% !important; top: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    width: min(880px, calc(100vw - 24px)) !important;
+    max-width: calc(100vw - 24px) !important;
+    height: min(88vh, 680px) !important;
+    max-height: min(88vh, 680px) !important;
+    border-radius: 20px !important;
+    box-sizing: border-box !important;
+  }
+  .skp-page { box-sizing: border-box; min-width: 0; }
+  .skp-body { box-sizing: border-box; min-width: 0; padding: 0 12px 12px !important; }
+  .skp-chips {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  .skp-chip {
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
+  }
+  .skp-input, .skp-search {
+    border-radius: 10px !important;
+    box-sizing: border-box !important;
+  }
+}
 `
 
     // Only the slot system is a hard client dependency; the panel speaks to the
@@ -127,6 +176,9 @@ window.__ModuleLoader__.load({
       runtime: "运行时",
     }
     const sourceLabel = (s) => SOURCE_LABEL[s] !== undefined ? SOURCE_LABEL[s] : String(s)
+
+    // 来源 chip 的稳定展示顺序；只显示实际存在（有 skill）的来源。
+    const SOURCE_ORDER = ["user-agents", "user-dsh", "project-agents", "project-dsh", "custom", "bundled", "runtime"]
 
     const newRpcId = () => {
       try {
@@ -221,6 +273,17 @@ window.__ModuleLoader__.load({
         const [busy, setBusy] = React.useState({})
         const [armed, setArmed] = React.useState({})
         const [notice, setNotice] = React.useState(null)
+        const [groups, setGroups] = React.useState({ status: "idle", groups: [] })
+        const [groupBusy, setGroupBusy] = React.useState({})
+        const [groupOpen, setGroupOpen] = React.useState({})
+        const [groupAdd, setGroupAdd] = React.useState({})
+        const [armedGroup, setArmedGroup] = React.useState(null)
+        const [creating, setCreating] = React.useState(false)
+        const [createName, setCreateName] = React.useState("")
+        const [createDesc, setCreateDesc] = React.useState("")
+        const [editing, setEditing] = React.useState(null)
+        const [editName, setEditName] = React.useState("")
+        const [editDesc, setEditDesc] = React.useState("")
 
         const load = React.useCallback(() => {
           setState((s) => ({ ...s, status: "loading" }))
@@ -245,6 +308,35 @@ window.__ModuleLoader__.load({
 
         React.useEffect(() => { if (active) load() }, [active, sessionId, load])
 
+        const loadGroups = React.useCallback(() => {
+          setGroups((g) => ({ ...g, status: "loading" }))
+          panelRpc("skillPanel/groupList", { request: {} })
+            .then((result) => {
+              if (!result.ok) {
+                setGroups({ status: "error", groups: [], error: rpcErrorText(result) })
+                return
+              }
+              const value = result.value === undefined || result.value === null ? {} : result.value
+              if (value.error !== undefined && value.error !== null && value.error !== "") {
+                setGroups({ status: "error", groups: value.groups || [], error: String(value.error) })
+                return
+              }
+              setGroups({ status: "ok", groups: value.groups || [] })
+            })
+            .catch((err) => {
+              setGroups({ status: "error", groups: [], error: String((err && err.message) || err) })
+            })
+        }, [])
+
+        React.useEffect(() => { if (active) loadGroups() }, [active, loadGroups])
+
+        // 当前选中的来源若在最新 catalog 里已不存在（如该目录被删），回退到「全部」。
+        React.useEffect(() => {
+          if (state.status !== "ok" || sourceFilter === "group" || sourceFilter === "all") return
+          const present = state.skills.some((s) => String(s.source) === sourceFilter)
+          if (!present) setSourceFilter("all")
+        }, [state, sourceFilter])
+
         const act = (name, op, fn) => {
           setBusy((b) => ({ ...b, [name]: op }))
           setNotice(null)
@@ -264,6 +356,72 @@ window.__ModuleLoader__.load({
           }).finally(() => {
             setBusy((b) => { const n = { ...b }; delete n[name]; return n })
           })
+        }
+
+        const groupAct = (key, fn, onOk) => {
+          setGroupBusy((b) => ({ ...b, [key]: true }))
+          setNotice(null)
+          fn().then((result) => {
+            if (!result.ok) {
+              setNotice({ kind: "error", text: rpcErrorText(result) })
+              return
+            }
+            const value = result.value === undefined || result.value === null ? {} : result.value
+            if (value.ok === false || (value.error !== undefined && value.error !== null && value.error !== "")) {
+              setNotice({ kind: "error", text: value.error === undefined || value.error === null ? "操作失败" : String(value.error) })
+              return
+            }
+            loadGroups()
+            load()
+            if (onOk) onOk()
+          }).catch((err) => {
+            setNotice({ kind: "error", text: String((err && err.message) || err) })
+          }).finally(() => {
+            setGroupBusy((b) => { const n = { ...b }; delete n[key]; return n })
+          })
+        }
+
+        const createGroup = () => {
+          const name = createName.trim()
+          if (name === "") { setNotice({ kind: "error", text: "组名不能为空" }); return }
+          groupAct("create", () => panelRpc("skillPanel/groupCreate", {
+            request: { name, description: createDesc.trim() },
+          }), () => { setCreating(false); setCreateName(""); setCreateDesc("") })
+        }
+
+        const startGroupEdit = (g) => {
+          setEditing({ name: g.name })
+          setEditName(g.name)
+          setEditDesc(g.description || "")
+        }
+
+        const saveGroupEdit = (g) => {
+          const newName = editName.trim()
+          if (newName === "") { setNotice({ kind: "error", text: "组名不能为空" }); return }
+          groupAct(g.name, () => panelRpc("skillPanel/groupUpdate", {
+            request: { name: g.name, newName, description: editDesc.trim() },
+          }), () => setEditing(null))
+        }
+
+        const deleteGroup = (g) => {
+          if (armedGroup !== g.name) { setArmedGroup(g.name); return }
+          groupAct(g.name, () => panelRpc("skillPanel/groupDelete", {
+            request: { name: g.name },
+          }), () => setArmedGroup(null))
+        }
+
+        const addMember = (g) => {
+          const skillName = groupAdd[g.name]
+          if (skillName === undefined || skillName === "") return
+          groupAct("add:" + g.name, () => panelRpc("skillPanel/groupAddSkill", {
+            request: { name: g.name, skillName, sessionId },
+          }), () => setGroupAdd((a) => { const n = { ...a }; delete n[g.name]; return n }))
+        }
+
+        const removeMember = (g, skillName) => {
+          groupAct("rm:" + g.name, () => panelRpc("skillPanel/groupRemoveSkill", {
+            request: { name: g.name, skillName, sessionId },
+          }))
         }
 
         const toggleInvocation = (skill, side) => {
@@ -363,6 +521,10 @@ window.__ModuleLoader__.load({
                   : null),
             ),
             React.createElement("div", { className: "skp-desc" }, s.description || "(无描述)"),
+            (Array.isArray(s.groups) && s.groups.length > 0)
+              ? React.createElement("div", { className: "skp-groups" },
+                  s.groups.map((g) => React.createElement("span", { className: "skp-tag", key: g }, g)))
+              : null,
             detail !== undefined
               ? React.createElement("div", { className: "skp-detail" },
                   detail.whenToUse ? React.createElement("div", { className: "skp-detail-line" }, "whenToUse: " + detail.whenToUse) : null,
@@ -374,8 +536,85 @@ window.__ModuleLoader__.load({
           )
         })
 
+        const groupToolbar = creating
+          ? React.createElement("div", { className: "skp-toolbar" },
+              React.createElement("input", { className: "skp-input", placeholder: "组名", value: createName, onChange: (e) => setCreateName(e.target.value) }),
+              React.createElement("input", { className: "skp-input", placeholder: "描述(可选)", value: createDesc, onChange: (e) => setCreateDesc(e.target.value) }),
+              React.createElement("button", { className: "skp-btn-sm skp-btn-enable", onClick: createGroup }, groupBusy["create"] ? "创建中…" : "创建"),
+              React.createElement("button", { className: "skp-btn-sm", onClick: () => { setCreating(false); setCreateName(""); setCreateDesc("") } }, "取消"),
+            )
+          : React.createElement("div", { className: "skp-toolbar" },
+              React.createElement("button", { className: "skp-btn-sm skp-btn-enable", onClick: () => setCreating(true) }, "＋ 新建组"),
+            )
+
+        const groupRows = groups.groups.map((g) => {
+          const members = Array.isArray(g.members) ? g.members : []
+          const isOpen = groupOpen[g.name] === true
+          const adding = groupAdd[g.name]
+          const isEditing = editing !== null && editing.name === g.name
+          const otherSkills = state.skills.filter((s) => members.indexOf(s.name) < 0)
+          return React.createElement("div", { className: "skp-row", key: g.name },
+            React.createElement("div", { className: "skp-row-top" },
+              isEditing
+                ? React.createElement(React.Fragment, null,
+                    React.createElement("input", { className: "skp-input", value: editName, onChange: (e) => setEditName(e.target.value), placeholder: "组名" }),
+                    React.createElement("input", { className: "skp-input", value: editDesc, onChange: (e) => setEditDesc(e.target.value), placeholder: "描述(可选)" }),
+                    React.createElement("button", { className: "skp-btn-sm skp-btn-enable", onClick: () => saveGroupEdit(g) }, "保存"),
+                    React.createElement("button", { className: "skp-btn-sm", onClick: () => setEditing(null) }, "取消"),
+                  )
+                : React.createElement(React.Fragment, null,
+                    React.createElement("span", { className: "skp-name", title: g.name, onClick: () => setGroupOpen((o) => ({ ...o, [g.name]: !isOpen })) }, g.name),
+                    React.createElement("span", { className: "skp-count" }, String(members.length)),
+                    React.createElement("span", { className: "skp-spacer" }),
+                    groupBusy[g.name]
+                      ? React.createElement("span", { className: "skp-busy" }, "处理中…")
+                      : React.createElement(React.Fragment, null,
+                          React.createElement("button", { className: "skp-btn-sm", title: "重命名 / 编辑描述", onClick: () => startGroupEdit(g) }, "重命名"),
+                          armedGroup === g.name
+                            ? React.createElement("button", { className: "skp-btn-sm skp-btn-danger", onClick: () => deleteGroup(g) }, "确认删除?")
+                            : React.createElement("button", { className: "skp-btn-sm skp-btn-danger", title: "删除该组", onClick: () => deleteGroup(g) }, "删除"),
+                        ),
+                  ),
+            ),
+            g.description ? React.createElement("div", { className: "skp-desc" }, g.description) : null,
+            isOpen
+              ? React.createElement("div", { className: "skp-detail" },
+                  members.length === 0
+                    ? React.createElement("div", { className: "skp-detail-line" }, "（暂无成员）")
+                    : members.map((m) => React.createElement("div", { className: "skp-member", key: m },
+                        React.createElement("span", { className: "skp-detail-line", style: { flex: 1 } }, m),
+                        React.createElement("button", { className: "skp-btn-sm skp-btn-danger", title: "移出该组", onClick: () => removeMember(g, m) }, "移除"),
+                      )),
+                  otherSkills.length === 0
+                    ? React.createElement("div", { className: "skp-detail-line" }, "所有 skill 都已加入该组")
+                    : React.createElement("div", { className: "skp-toolbar" },
+                        React.createElement("select", {
+                          className: "skp-input skp-select",
+                          value: adding === undefined ? "" : adding,
+                          onChange: (e) => setGroupAdd((a) => ({ ...a, [g.name]: e.target.value })),
+                        },
+                          React.createElement("option", { value: "", disabled: true }, "选择要加入的 skill…"),
+                          otherSkills.map((s) => React.createElement("option", { key: s.name, value: s.name }, s.name)),
+                        ),
+                        React.createElement("button", {
+                          className: "skp-btn-sm skp-btn-enable",
+                          disabled: adding === undefined || adding === "",
+                          onClick: () => addMember(g),
+                        }, "加入"),
+                      ),
+                )
+              : null,
+          )
+        })
+
         let body
-        if (state.status === "loading") body = React.createElement("div", { className: "skp-empty" }, "加载中…")
+        if (sourceFilter === "group") {
+          if (groups.status === "loading" || groups.status === "idle") body = React.createElement("div", { className: "skp-empty" }, "加载中…")
+          else if (groups.status === "error") body = React.createElement("div", { className: "skp-err" }, "加载失败: " + groups.error)
+          else if (groups.groups.length === 0) body = React.createElement("div", { className: "skp-empty" }, "还没有小组，点击上方「新建组」创建")
+          else body = groupRows
+        }
+        else if (state.status === "loading") body = React.createElement("div", { className: "skp-empty" }, "加载中…")
         else if (state.status === "error") body = React.createElement("div", { className: "skp-err" }, "加载失败: " + state.error)
         else if (visible.length === 0) body = React.createElement("div", { className: "skp-empty" }, state.skills.length === 0 ? "未发现 skill" : "没有匹配的 skill")
         else body = rows
@@ -386,10 +625,16 @@ window.__ModuleLoader__.load({
           sourceCounts[key] = sourceCounts[key] === undefined ? 1 : sourceCounts[key] + 1
         }
         const countOf = (source) => source === "all" ? state.skills.length : (sourceCounts[source] === undefined ? 0 : sourceCounts[source])
+        // 跟着 dsh 的发现结果走：catalog 里实际出现（count > 0）的来源才显示 tab，
+        // 没被发现的来源不显示。「组」「全部」固定保留。
+        const sourceChips = SOURCE_ORDER
+          .filter((source) => (sourceCounts[source] ?? 0) > 0)
+          .map((source) => [source, sourceLabel(source), sourceCounts[source]])
         const chips = [
-          ["all", "全部"], ["user-agents", "用户 .agents"], ["user-dsh", "用户 .dsh"],
-          ["project-agents", "项目 .agents"], ["project-dsh", "项目 .dsh"], ["custom", "自定义"], ["bundled", "内置"],
-        ].map(([value, label]) => [value, label, countOf(value)])
+          ["group", "组", groups.status === "ok" ? groups.groups.length : null],
+          ["all", "全部", countOf("all")],
+          ...sourceChips,
+        ]
 
         const head = React.createElement("div", { className: variant === "modal" ? "skp-panel-head" : "skp-page-head" },
           React.createElement("span", null, "Skill 管理"),
@@ -413,21 +658,23 @@ window.__ModuleLoader__.load({
               chips.map(([value, label, count]) => React.createElement("button", {
                 key: value, className: "skp-chip" + (sourceFilter === value ? " skp-chip-on" : ""),
                 onClick: () => setSourceFilter(value),
-              }, label + " (" + count + ")")),
+              }, label + (count === null ? "" : " (" + count + ")")))
             ),
-            React.createElement("input", {
-              className: "skp-input skp-search", placeholder: "搜索名称或描述…",
-              value: query, onChange: (e) => setQuery(e.target.value),
-            }),
+            sourceFilter === "group"
+              ? groupToolbar
+              : React.createElement("input", {
+                  className: "skp-input skp-search", placeholder: "搜索名称或描述…",
+                  value: query, onChange: (e) => setQuery(e.target.value),
+                }),
             body,
           ),
         )
       }
 
       slots.inject("sidebar.footer.action", () => slots.register(
-        { name: "sidebar.footer.action", id: "skills-panel", order: 20, label: "Skills" },
+        { name: "sidebar.footer.action", id: "skills-panel", order: 30, label: "Skills" },
         (props) => React.createElement("button", {
-          className: "skp-btn" + (useOpen() ? " skp-btn-active" : ""),
+          className: "skp-btn" + (props.wide ? "" : " skp-btn-rail") + (useOpen() ? " skp-btn-active" : ""),
           title: "Skill 管理面板",
           "aria-label": "Skill 管理面板",
           onClick: () => setOpen(!open),
