@@ -95,7 +95,6 @@ window.__ModuleLoader__.load({
 .skp-row { padding: 10px 12px; border-radius: 8px; display: flex; flex-direction: column; gap: 4px; max-width: 860px; }
 .skp-row + .skp-row { border-top: 1px solid var(--dsw-alias-border-l1); border-radius: 0; }
 .skp-row:hover { background: var(--dsw-alias-bg-layer-1); }
-.skp-row-top { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; }
 .skp-name {
   flex: 1 1 100%; min-width: 0;
   font-weight: 600; font-size: 13.5px;
@@ -149,6 +148,65 @@ window.__ModuleLoader__.load({
 .skp-member { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
 .skp-empty, .skp-err { padding: 28px 12px; text-align: center; font-size: 13px; color: var(--dsw-alias-label-secondary); }
 .skp-err { color: var(--dsw-alias-state-error-primary); }
+/* ── visual polish ─────────────────────────────────────────────── */
+@keyframes skp-pop {
+  from { opacity: 0; transform: translate(-50%, -48%) scale(0.97); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+.skp-panel { animation: skp-pop 160ms ease-out; }
+.skp-page { animation: skp-fade 160ms ease-out; }
+@keyframes skp-fade { from { opacity: 0; } to { opacity: 1; } }
+.skp-panel-head { background: color-mix(in srgb, var(--dsw-alias-bg-layer-1) 55%, transparent); }
+.skp-panel-head, .skp-page-head { backdrop-filter: blur(8px); }
+.skp-chip { transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease, transform 120ms ease; }
+.skp-chip:hover { background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); }
+.skp-chip:active { transform: scale(0.96); }
+.skp-chip-on { background: color-mix(in srgb, var(--dsw-alias-brand-primary) 13%, transparent); }
+.skp-row { transition: background-color 120ms ease; border-radius: 10px; }
+.skp-row:hover { background: var(--dsw-alias-bg-layer-1); }
+.skp-name { display: inline-flex; align-items: center; gap: 7px; overflow: visible; white-space: normal; }
+.skp-name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.skp-name svg { flex: none; color: var(--dsw-alias-label-secondary); }
+.skp-name:hover svg { color: var(--dsw-alias-brand-primary); }
+.skp-tag { transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease; }
+.skp-tag:hover { border-color: var(--dsw-alias-brand-primary); color: var(--dsw-alias-label-primary); }
+.skp-sw { transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease, opacity 120ms ease, transform 80ms ease; }
+.skp-sw:not(.skp-sw-dis):hover { background: var(--dsw-alias-bg-layer-1); }
+.skp-sw:not(.skp-sw-dis):active { transform: scale(0.96); }
+.skp-icon-btn { transition: background-color 120ms ease, color 120ms ease; }
+.skp-icon-btn:hover { background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); }
+.skp-btn-sm { transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease, transform 80ms ease; }
+.skp-btn-sm:active { transform: scale(0.96); }
+.skp-input, .skp-search { transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease; }
+.skp-input:focus, .skp-search:focus {
+  border-color: var(--dsw-alias-brand-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--dsw-alias-brand-primary) 18%, transparent);
+}
+.skp-detail { animation: skp-detail-in 140ms ease-out; }
+@keyframes skp-detail-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.skp-notice { border-radius: 10px; }
+.skp-empty, .skp-err { animation: skp-fade 160ms ease-out; }
+/* ── geometry system: grid alignment, pill shapes, rhythm ───────── */
+.skp-body { display: flex; flex-direction: column; }
+.skp-row { max-width: 820px; width: 100%; margin: 0 auto; }
+.skp-row + .skp-row { border-top: 1px solid color-mix(in srgb, var(--dsw-alias-border-l1) 55%, transparent); }
+.skp-row:hover { box-shadow: inset 2px 0 0 var(--dsw-alias-brand-primary); }
+.skp-name svg { width: 18px; height: 18px; }
+.skp-sw {
+  display: inline-flex; align-items: center; height: 22px; padding: 0 10px;
+  border-radius: 999px;
+}
+.skp-btn-sm {
+  height: 26px; min-width: 26px; padding: 0 10px; border-radius: 8px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.skp-icon-btn { width: 28px; height: 28px; border-radius: 8px; align-items: center; justify-content: center; }
+.skp-chip { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; }
+.skp-input, .skp-search { height: 34px; }
+.skp-panel-head, .skp-page-head { min-height: 48px; align-items: center; }
+.skp-count { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; }
+.skp-tag { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; }
+.skp-desc { line-height: 1.5; }
 @media (max-width: 700px) {
   .skp-panel {
     left: 50% !important; top: 50% !important;
@@ -188,6 +246,41 @@ window.__ModuleLoader__.load({
     height: min(94dvh, 460px) !important;
     max-height: min(94dvh, 460px) !important;
   }
+}
+/* ── vertical geometry v2: deterministic bands, one centered column ──
+   r1 = grid [name(minmax(0,1fr)) | actions(auto, right-pinned)]
+   meta = left-aligned pill/tag band; every row shares the same X anchors,
+   so columns line up vertically across rows instead of drifting. */
+.skp-chips, .skp-search, .skp-row, .skp-toolbar, .skp-notice, .skp-empty, .skp-err {
+  width: 100%; max-width: 820px;
+  margin-left: auto; margin-right: auto;
+  box-sizing: border-box;
+}
+.skp-search { margin-top: 8px; margin-bottom: 2px; }
+.skp-row { padding: 12px 14px; gap: 8px; }
+.skp-r1 {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center; gap: 10px; min-height: 28px;
+}
+.skp-name {
+  flex: none; display: flex; align-items: center; gap: 7px;
+  min-width: 0; overflow: hidden; white-space: nowrap;
+  flex-basis: auto;
+}
+.skp-id { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.skp-id .skp-name { flex: 0 1 auto; }
+.skp-acts { display: flex; align-items: center; gap: 6px; justify-self: end; flex: none; }
+.skp-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.skp-source { font-size: 11px; }
+.skp-desc { padding-left: 25px; }
+.skp-detail { margin-left: 25px; }
+@keyframes skp-rise {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+.skp-row { animation: skp-rise 240ms cubic-bezier(0.25, 0.6, 0.3, 1) both; animation-delay: calc(var(--skp-i, 0) * 24ms); }
+@media (prefers-reduced-motion: reduce) {
+  .skp-row, .skp-panel, .skp-page, .skp-detail, .skp-empty, .skp-err { animation: none; }
 }
 `
 
@@ -625,47 +718,55 @@ window.__ModuleLoader__.load({
           return true
         })
 
-        const rows = visible.map((s) => {
+        const rows = visible.map((s, i) => {
           const isBusy = busy[s.name] !== undefined
           const removable = s.path != null && s.path !== "" && s.source !== "bundled"
           const isDisabled = !s.modelInvocable && !s.userInvocable
           const detail = expanded[s.name]
-          return React.createElement("div", { className: "skp-row", key: s.name },
-            React.createElement("div", { className: "skp-row-top" },
+          return React.createElement("div", {
+            className: "skp-row",
+            key: s.name,
+            style: { "--skp-i": String(Math.min(i, 6)) },
+          },
+            React.createElement("div", { className: "skp-r1" },
               React.createElement("button", {
                 type: "button",
                 className: "skp-name",
                 title: s.name,
                 "aria-expanded": detail !== undefined ? "true" : "false",
                 onClick: () => toggleDetail(s),
-              }, s.name),
-              React.createElement(Switch, { label: "模型", on: s.modelInvocable, disabled: !removable || isBusy, onChange: () => toggleInvocation(s, "model") }),
-              React.createElement(Switch, { label: "用户", on: s.userInvocable, disabled: !removable || isBusy, onChange: () => toggleInvocation(s, "user") }),
-              React.createElement("span", { className: "skp-source" }, sourceLabel(s.source)),
-              React.createElement("span", { className: "skp-spacer" }),
-              isBusy
-                ? React.createElement("span", { className: "skp-busy" }, "处理中…")
-                : (removable
-                  ? React.createElement(React.Fragment, null,
-                      React.createElement("button", {
-                        className: "skp-btn-sm" + (isDisabled ? " skp-btn-enable" : ""),
-                        title: isDisabled ? "启用该 skill(恢复禁用前的状态)" : "禁用该 skill(模型与用户都不可用)",
-                        onClick: () => disableSkill(s),
-                      }, isDisabled ? "启用" : "禁用"),
-                      armed[s.name]
+              }, icon(BOOK), React.createElement("span", { className: "skp-name-text" }, s.name)),
+              React.createElement("div", { className: "skp-acts" },
+                isBusy
+                  ? React.createElement("span", { className: "skp-busy" }, "处理中…")
+                  : React.createElement(React.Fragment, null,
+                      React.createElement(Switch, { label: "模型", on: s.modelInvocable, disabled: !removable || isBusy, onChange: () => toggleInvocation(s, "model") }),
+                      React.createElement(Switch, { label: "用户", on: s.userInvocable, disabled: !removable || isBusy, onChange: () => toggleInvocation(s, "user") }),
+                      removable
                         ? React.createElement("button", {
-                          className: "skp-btn-sm skp-btn-danger",
-                          onClick: () => { setArmed((a) => { const n = { ...a }; delete n[s.name]; return n }); uninstall(s) },
-                        }, "确认卸载?")
-                        : React.createElement("button", { className: "skp-btn-sm", title: "卸载该 skill", onClick: () => setArmed((a) => ({ ...a, [s.name]: true })) }, icon(TRASH)),
-                    )
-                  : null),
+                          className: "skp-btn-sm" + (isDisabled ? " skp-btn-enable" : ""),
+                          title: isDisabled ? "启用该 skill(恢复禁用前的状态)" : "禁用该 skill(模型与用户都不可用)",
+                          onClick: () => disableSkill(s),
+                        }, isDisabled ? "启用" : "禁用")
+                        : null,
+                      removable
+                        ? (armed[s.name]
+                          ? React.createElement("button", {
+                            className: "skp-btn-sm skp-btn-danger",
+                            onClick: () => { setArmed((a) => { const n = { ...a }; delete n[s.name]; return n }); uninstall(s) },
+                          }, "确认卸载?")
+                          : React.createElement("button", { className: "skp-btn-sm", title: "卸载该 skill", onClick: () => setArmed((a) => ({ ...a, [s.name]: true })) }, icon(TRASH)))
+                        : null,
+                    ),
+              ),
+            ),
+            React.createElement("div", { className: "skp-meta" },
+              React.createElement("span", { className: "skp-source" }, sourceLabel(s.source)),
+              (Array.isArray(s.groups) && s.groups.length > 0)
+                ? s.groups.map((g) => React.createElement("span", { className: "skp-tag", key: g }, g))
+                : null,
             ),
             React.createElement("div", { className: "skp-desc" }, s.description || "(无描述)"),
-            (Array.isArray(s.groups) && s.groups.length > 0)
-              ? React.createElement("div", { className: "skp-groups" },
-                  s.groups.map((g) => React.createElement("span", { className: "skp-tag", key: g }, g)))
-              : null,
             detail !== undefined
               ? React.createElement("div", { className: "skp-detail" },
                   detail.whenToUse ? React.createElement("div", { className: "skp-detail-line" }, "whenToUse: " + detail.whenToUse) : null,
@@ -701,7 +802,7 @@ window.__ModuleLoader__.load({
           const isEditing = editing !== null && editing.name === g.name
           const otherSkills = state.skills.filter((s) => members.indexOf(s.name) < 0)
           return React.createElement("div", { className: "skp-row", key: g.name },
-            React.createElement("div", { className: "skp-row-top" },
+            React.createElement("div", { className: "skp-r1" },
               isEditing
                 ? React.createElement("form", { className: "skp-toolbar", onSubmit: (e) => { e.preventDefault(); saveGroupEdit(g) } },
                     React.createElement("input", { className: "skp-input", value: editName, onChange: (e) => setEditName(e.target.value), placeholder: "组名" }),
@@ -710,23 +811,26 @@ window.__ModuleLoader__.load({
                     React.createElement("button", { type: "button", className: "skp-btn-sm", onClick: () => setEditing(null) }, "取消"),
                   )
                 : React.createElement(React.Fragment, null,
-                    React.createElement("button", {
-                      type: "button",
-                      className: "skp-name",
-                      title: g.name,
-                      "aria-expanded": isOpen ? "true" : "false",
-                      onClick: () => setGroupOpen((o) => ({ ...o, [g.name]: !isOpen })),
-                    }, g.name),
-                    React.createElement("span", { className: "skp-count" }, String(members.length)),
-                    React.createElement("span", { className: "skp-spacer" }),
-                    groupBusy[g.name]
-                      ? React.createElement("span", { className: "skp-busy" }, "处理中…")
-                      : React.createElement(React.Fragment, null,
-                          React.createElement("button", { className: "skp-btn-sm", title: "重命名 / 编辑描述", onClick: () => startGroupEdit(g) }, "重命名"),
-                          armedGroup === g.name
-                            ? React.createElement("button", { className: "skp-btn-sm skp-btn-danger", onClick: () => deleteGroup(g) }, "确认删除?")
-                            : React.createElement("button", { className: "skp-btn-sm skp-btn-danger", title: "删除该组", onClick: () => deleteGroup(g) }, "删除"),
-                        ),
+                    React.createElement("div", { className: "skp-id" },
+                      React.createElement("button", {
+                        type: "button",
+                        className: "skp-name",
+                        title: g.name,
+                        "aria-expanded": isOpen ? "true" : "false",
+                        onClick: () => setGroupOpen((o) => ({ ...o, [g.name]: !isOpen })),
+                      }, g.name),
+                      React.createElement("span", { className: "skp-count" }, String(members.length)),
+                    ),
+                    React.createElement("div", { className: "skp-acts" },
+                      groupBusy[g.name]
+                        ? React.createElement("span", { className: "skp-busy" }, "处理中…")
+                        : React.createElement(React.Fragment, null,
+                            React.createElement("button", { className: "skp-btn-sm", title: "重命名 / 编辑描述", onClick: () => startGroupEdit(g) }, "重命名"),
+                            armedGroup === g.name
+                              ? React.createElement("button", { className: "skp-btn-sm skp-btn-danger", onClick: () => deleteGroup(g) }, "确认删除?")
+                              : React.createElement("button", { className: "skp-btn-sm skp-btn-danger", title: "删除该组", onClick: () => deleteGroup(g) }, "删除"),
+                          ),
+                    ),
                   ),
             ),
             g.description ? React.createElement("div", { className: "skp-desc" }, g.description) : null,
