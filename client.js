@@ -282,6 +282,48 @@ window.__ModuleLoader__.load({
 @media (prefers-reduced-motion: reduce) {
   .skp-row, .skp-panel, .skp-page, .skp-detail, .skp-empty, .skp-err { animation: none; }
 }
+/* ── material & order: card rows, one inset column, quiet motion ──
+   Every surface shares the panel's 16px inset, so header / chips / rows /
+   footer left-right edges coincide exactly. Rows are quiet cards: identical
+   band anatomy, one text axis (25px, under the name), desc reserves exactly
+   two lines so every collapsed row is the same height. */
+.skp-chips, .skp-search, .skp-toolbar, .skp-row, .skp-notice, .skp-empty, .skp-err {
+  max-width: none; margin-left: 0; margin-right: 0;
+}
+.skp-row {
+  max-width: none; margin: 8px 0 0;
+  border: 1px solid color-mix(in srgb, var(--dsw-alias-border-l1) 62%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--dsw-alias-bg-layer-1) 38%, transparent);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+  animation: skp-rise 240ms cubic-bezier(0.25, 0.6, 0.3, 1) backwards; animation-delay: calc(var(--skp-i, 0) * 24ms);
+}
+.skp-row + .skp-row {
+  border-radius: 12px;
+  border-top: 1px solid color-mix(in srgb, var(--dsw-alias-border-l1) 62%, transparent);
+}
+.skp-row:hover {
+  background: var(--dsw-alias-bg-layer-1);
+  border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 32%, var(--dsw-alias-border-l1));
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+}
+.skp-meta { padding-left: 25px; flex-wrap: nowrap; overflow: hidden; max-width: 100%; }
+.skp-source {
+  display: inline-flex; align-items: center; flex: none;
+  height: 20px; padding: 0 8px; border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--dsw-alias-border-l1) 62%, transparent);
+}
+.skp-desc { min-height: 3em; }
+.skp-sw-on { background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 12%, transparent); }
+.skp-body { scrollbar-width: thin; scrollbar-color: var(--dsw-alias-border-l2) transparent; }
+.skp-body::-webkit-scrollbar { width: 8px; }
+.skp-body::-webkit-scrollbar-thumb { background: var(--dsw-alias-border-l2); border-radius: 999px; }
+.skp-body::-webkit-scrollbar-track { background: transparent; }
+@media (prefers-reduced-motion: reduce) {
+  .skp-row { transition: none; }
+}
 `
 
     // Only the slot system is a hard client dependency; the panel speaks to the
