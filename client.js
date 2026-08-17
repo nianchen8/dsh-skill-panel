@@ -4,16 +4,9 @@ window.__ModuleLoader__.load({
     const React = require("react")
 
     const CSS = `
-/* Sidebar foot: the owner renders sidebar.footer.action entries in a row; the
-   panel's full-width buttons need them stacked. This reaches the owner's
-   container through its hashed class (contains "footerActions" across current
-   dsh releases) and therefore also affects sibling footer-action entries
-   (e.g. cordis-panel) — re-verify after a dsh upgrade. */
-[class*="footerActions"] { flex-direction: column; }
 .skp-btn {
   display: flex; align-items: center; gap: 8px;
-  height: 36px; padding: 0 10px; width: 100%;
-  margin: 4px -4px;
+  height: 36px; padding: 0 10px;
   background: transparent; border: none; cursor: pointer;
   color: var(--dsw-alias-label-secondary);
   font: inherit; font-size: 13px;
@@ -33,9 +26,9 @@ window.__ModuleLoader__.load({
 .skp-btn-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .skp-panel {
   position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  z-index: 1000;
   width: min(880px, calc(100vw - 48px));
   height: min(78vh, 680px);
+  height: min(78dvh, 680px);
   display: flex; flex-direction: column;
   background: var(--dsw-alias-bg-overlay);
   border: 1px solid var(--dsw-alias-border-l1);
@@ -78,6 +71,10 @@ window.__ModuleLoader__.load({
   padding: 7px 10px; font: inherit; font-size: 13px;
 }
 .skp-input:focus { outline: none; border-color: var(--dsw-alias-brand-primary); }
+.skp-input:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 1px; }
+.skp-btn:focus-visible, .skp-btn-sm:focus-visible, .skp-chip:focus-visible, .skp-icon-btn:focus-visible, .skp-sw:focus-visible, .skp-name:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 2px;
+}
 .skp-search { display: block; width: 100%; max-width: 640px; margin: 8px 0 2px; }
 .skp-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 0 0; }
 .skp-chip {
@@ -90,7 +87,12 @@ window.__ModuleLoader__.load({
 .skp-row + .skp-row { border-top: 1px solid var(--dsw-alias-border-l1); border-radius: 0; }
 .skp-row:hover { background: var(--dsw-alias-bg-layer-1); }
 .skp-row-top { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; }
-.skp-name { flex: 1 1 100%; min-width: 0; font-weight: 600; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.skp-name {
+  flex: 1 1 100%; min-width: 0;
+  font-weight: 600; font-size: 13.5px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;
+  background: none; border: none; padding: 0; text-align: left; font-family: inherit; color: inherit;
+}
 .skp-name:hover { color: var(--dsw-alias-brand-primary); }
 .skp-sw {
   flex: none; font-size: 11px; line-height: 1; padding: 3px 8px; border-radius: 999px;
@@ -145,16 +147,20 @@ window.__ModuleLoader__.load({
     width: min(880px, calc(100vw - 24px)) !important;
     max-width: calc(100vw - 24px) !important;
     height: min(88vh, 680px) !important;
+    height: min(88dvh, 680px) !important;
     max-height: min(88vh, 680px) !important;
+    max-height: min(88dvh, 680px) !important;
     border-radius: 20px !important;
     box-sizing: border-box !important;
+    padding-left: env(safe-area-inset-left) !important;
+    padding-right: env(safe-area-inset-right) !important;
   }
   .skp-page { box-sizing: border-box; min-width: 0; }
   .skp-body { box-sizing: border-box; min-width: 0; padding: 0 12px 12px !important; }
   .skp-chips {
     flex-wrap: nowrap !important;
     overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch !important;
+    overscroll-behavior-inline: contain !important;
   }
   .skp-chip {
     flex: 0 0 auto !important;
@@ -163,6 +169,15 @@ window.__ModuleLoader__.load({
   .skp-input, .skp-search {
     border-radius: 10px !important;
     box-sizing: border-box !important;
+  }
+  .skp-btn-sm { min-height: 36px; }
+  .skp-sw { min-height: 28px; padding: 6px 10px; }
+  .skp-btn-rail { width: 40px; height: 40px; }
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  .skp-panel {
+    height: min(94dvh, 460px) !important;
+    max-height: min(94dvh, 460px) !important;
   }
 }
 `
@@ -257,7 +272,7 @@ window.__ModuleLoader__.load({
     /** Resolve the deployment's entry placement; defaults on any failure. */
     const loadEntries = async () => {
       try {
-        const result = await panelRpc("skillPanel/getConfig", { request: {} }, 5000)
+        const result = await panelRpc("skillPanel/getConfig", { request: {} }, 2000)
         if (result !== null && typeof result === "object" && result.entries !== undefined) {
           return normalizeEntries(result)
         }
@@ -315,6 +330,8 @@ window.__ModuleLoader__.load({
         return React.createElement("button", {
           className: "skp-sw" + (on ? " skp-sw-on" : "") + (disabled ? " skp-sw-dis" : ""),
           title: disabled ? "「" + label + "可用」不可修改" : (on ? "关闭" : "开启") + "「" + label + "可用」",
+          "aria-pressed": on ? "true" : "false",
+          "aria-disabled": disabled ? "true" : undefined,
           onClick: () => { if (!disabled && onChange) onChange(!on) },
         }, label)
       }
@@ -342,6 +359,10 @@ window.__ModuleLoader__.load({
         const [editing, setEditing] = React.useState(null)
         const [editName, setEditName] = React.useState("")
         const [editDesc, setEditDesc] = React.useState("")
+        const panelRef = React.useRef(null)
+        const mountedRef = React.useRef(true)
+        const busyRef = React.useRef({})
+        React.useEffect(() => () => { mountedRef.current = false }, [])
 
         const load = React.useCallback(() => {
           setState((s) => ({ ...s, status: "loading" }))
@@ -395,10 +416,51 @@ window.__ModuleLoader__.load({
           if (!present) setSourceFilter("all")
         }, [state, sourceFilter])
 
+        // Modal accessibility: move focus into the panel on open, trap Tab
+        // inside it, close on Escape, and return focus to the trigger on close.
+        React.useEffect(() => {
+          if (variant !== "modal" || !isOpen) return
+          const previous = document.activeElement
+          const panel = panelRef.current
+          if (panel !== null) {
+            const target = panel.querySelector("input, select") || panel.querySelector("button")
+            if (target !== null) target.focus()
+          }
+          const onKeyDown = (e) => {
+            if (e.key === "Escape" && props.onClose) props.onClose()
+          }
+          document.addEventListener("keydown", onKeyDown)
+          return () => {
+            document.removeEventListener("keydown", onKeyDown)
+            if (previous !== null && typeof previous.focus === "function" && document.contains(previous)) previous.focus()
+          }
+        }, [variant, isOpen])
+
+        const trapTab = (e) => {
+          if (e.key !== "Tab" || panelRef.current === null) return
+          const nodes = panelRef.current.querySelectorAll("button, input, select, [tabindex]:not([tabindex='-1'])")
+          const focusable = Array.from(nodes).filter((el) => !el.disabled)
+          if (focusable.length === 0) { e.preventDefault(); return }
+          const first = focusable[0]
+          const last = focusable[focusable.length - 1]
+          const active = document.activeElement
+          if (e.shiftKey && (active === first || active === panelRef.current || !panelRef.current.contains(active))) {
+            e.preventDefault(); last.focus()
+          } else if (!e.shiftKey && active === last) {
+            e.preventDefault(); first.focus()
+          }
+        }
+
         const act = (name, op, fn) => {
-          setBusy((b) => ({ ...b, [name]: op }))
+          // Synchronous re-entry guard: a second click before the busy state
+          // renders must not fire a duplicate request.
+          if (busyRef.current[name] !== undefined) return
+          const next = { ...busyRef.current, [name]: op }
+          busyRef.current = next
+          setBusy(next)
           setNotice(null)
           fn().then((result) => {
+            if (!mountedRef.current) return
             if (!result.ok) {
               setNotice({ kind: "error", text: rpcErrorText(result) })
               return
@@ -410,16 +472,24 @@ window.__ModuleLoader__.load({
             }
             load()
           }).catch((err) => {
-            setNotice({ kind: "error", text: String((err && err.message) || err) })
+            if (mountedRef.current) setNotice({ kind: "error", text: String((err && err.message) || err) })
           }).finally(() => {
-            setBusy((b) => { const n = { ...b }; delete n[name]; return n })
+            if (!mountedRef.current) return
+            const n = { ...busyRef.current }; delete n[name]; busyRef.current = n; setBusy(n)
           })
         }
 
         const groupAct = (key, fn, onOk) => {
+          // Namespace the re-entry guard so group ops can never collide with
+          // a skill named like a group op key.
+          const refKey = "g:" + key
+          if (busyRef.current[refKey] !== undefined) return
+          const next = { ...busyRef.current, [refKey]: true }
+          busyRef.current = next
           setGroupBusy((b) => ({ ...b, [key]: true }))
           setNotice(null)
           fn().then((result) => {
+            if (!mountedRef.current) return
             if (!result.ok) {
               setNotice({ kind: "error", text: rpcErrorText(result) })
               return
@@ -433,9 +503,11 @@ window.__ModuleLoader__.load({
             load()
             if (onOk) onOk()
           }).catch((err) => {
-            setNotice({ kind: "error", text: String((err && err.message) || err) })
+            if (mountedRef.current) setNotice({ kind: "error", text: String((err && err.message) || err) })
           }).finally(() => {
-            setGroupBusy((b) => { const n = { ...b }; delete n[key]; return n })
+            if (!mountedRef.current) return
+            const n = { ...busyRef.current }; delete n[refKey]; busyRef.current = n
+            setGroupBusy((b) => { const m = { ...b }; delete m[key]; return m })
           })
         }
 
@@ -551,9 +623,11 @@ window.__ModuleLoader__.load({
           const detail = expanded[s.name]
           return React.createElement("div", { className: "skp-row", key: s.name },
             React.createElement("div", { className: "skp-row-top" },
-              React.createElement("span", {
+              React.createElement("button", {
+                type: "button",
                 className: "skp-name",
                 title: s.name,
+                "aria-expanded": detail !== undefined ? "true" : "false",
                 onClick: () => toggleDetail(s),
               }, s.name),
               React.createElement(Switch, { label: "模型", on: s.modelInvocable, disabled: !removable || isBusy, onChange: () => toggleInvocation(s, "model") }),
@@ -594,16 +668,22 @@ window.__ModuleLoader__.load({
           )
         })
 
-        const groupToolbar = creating
+        const groupToolbar = groups.status === "error"
           ? React.createElement("div", { className: "skp-toolbar" },
-              React.createElement("input", { className: "skp-input", placeholder: "组名", value: createName, onChange: (e) => setCreateName(e.target.value) }),
-              React.createElement("input", { className: "skp-input", placeholder: "描述(可选)", value: createDesc, onChange: (e) => setCreateDesc(e.target.value) }),
-              React.createElement("button", { className: "skp-btn-sm skp-btn-enable", onClick: createGroup }, groupBusy["create"] ? "创建中…" : "创建"),
-              React.createElement("button", { className: "skp-btn-sm", onClick: () => { setCreating(false); setCreateName(""); setCreateDesc("") } }, "取消"),
+              React.createElement("span", { className: "skp-detail-line" }, "存储不可用,分组功能为只读"),
             )
-          : React.createElement("div", { className: "skp-toolbar" },
-              React.createElement("button", { className: "skp-btn-sm skp-btn-enable", onClick: () => setCreating(true) }, "＋ 新建组"),
-            )
+          : groups.status !== "ok"
+            ? null
+            : creating
+              ? React.createElement("form", { className: "skp-toolbar", onSubmit: (e) => { e.preventDefault(); createGroup() } },
+                  React.createElement("input", { className: "skp-input", placeholder: "组名", value: createName, onChange: (e) => setCreateName(e.target.value) }),
+                  React.createElement("input", { className: "skp-input", placeholder: "描述(可选)", value: createDesc, onChange: (e) => setCreateDesc(e.target.value) }),
+                  React.createElement("button", { type: "submit", className: "skp-btn-sm skp-btn-enable", disabled: groupBusy["create"] === true }, groupBusy["create"] ? "创建中…" : "创建"),
+                  React.createElement("button", { type: "button", className: "skp-btn-sm", onClick: () => { setCreating(false); setCreateName(""); setCreateDesc("") } }, "取消"),
+                )
+              : React.createElement("div", { className: "skp-toolbar" },
+                  React.createElement("button", { type: "button", className: "skp-btn-sm skp-btn-enable", onClick: () => setCreating(true) }, "＋ 新建组"),
+                )
 
         const groupRows = groups.groups.map((g) => {
           const members = Array.isArray(g.members) ? g.members : []
@@ -614,14 +694,20 @@ window.__ModuleLoader__.load({
           return React.createElement("div", { className: "skp-row", key: g.name },
             React.createElement("div", { className: "skp-row-top" },
               isEditing
-                ? React.createElement(React.Fragment, null,
+                ? React.createElement("form", { className: "skp-toolbar", onSubmit: (e) => { e.preventDefault(); saveGroupEdit(g) } },
                     React.createElement("input", { className: "skp-input", value: editName, onChange: (e) => setEditName(e.target.value), placeholder: "组名" }),
                     React.createElement("input", { className: "skp-input", value: editDesc, onChange: (e) => setEditDesc(e.target.value), placeholder: "描述(可选)" }),
-                    React.createElement("button", { className: "skp-btn-sm skp-btn-enable", onClick: () => saveGroupEdit(g) }, "保存"),
-                    React.createElement("button", { className: "skp-btn-sm", onClick: () => setEditing(null) }, "取消"),
+                    React.createElement("button", { type: "submit", className: "skp-btn-sm skp-btn-enable" }, "保存"),
+                    React.createElement("button", { type: "button", className: "skp-btn-sm", onClick: () => setEditing(null) }, "取消"),
                   )
                 : React.createElement(React.Fragment, null,
-                    React.createElement("span", { className: "skp-name", title: g.name, onClick: () => setGroupOpen((o) => ({ ...o, [g.name]: !isOpen })) }, g.name),
+                    React.createElement("button", {
+                      type: "button",
+                      className: "skp-name",
+                      title: g.name,
+                      "aria-expanded": isOpen ? "true" : "false",
+                      onClick: () => setGroupOpen((o) => ({ ...o, [g.name]: !isOpen })),
+                    }, g.name),
                     React.createElement("span", { className: "skp-count" }, String(members.length)),
                     React.createElement("span", { className: "skp-spacer" }),
                     groupBusy[g.name]
@@ -708,6 +794,9 @@ window.__ModuleLoader__.load({
           className: variant === "modal" ? "skp-panel" : "skp-page",
           role: variant === "modal" ? "dialog" : undefined,
           "aria-label": "Skill 管理",
+          "aria-modal": variant === "modal" ? "true" : undefined,
+          ref: panelRef,
+          onKeyDown: trapTab,
         },
           head,
           React.createElement("div", { className: "skp-body" },

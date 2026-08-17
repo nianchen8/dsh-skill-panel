@@ -167,16 +167,19 @@ class SkillPanelService extends TypertRemoteService {
 
   /**
    * Open the group domain once, lazily. Returns the domain handle, or null
-   * when the storage facility is absent or open fails (panel degrades to
-   * read-only group views).
+   * when the storage facility is absent or open fails. A failed open clears
+   * the memo so the next call retries — a transient backend error or an
+   * `already-open` race during a plugin reload must not pin the panel to
+   * read-only for the rest of its lifetime.
    */
   ensureDomain() {
-    if (this._domainPromise === undefined) {
-      const facility = this.ctx.get('storageDomain')
-      this._domainPromise = facility === undefined
-        ? Promise.resolve(null)
-        : facility.open(GROUP_DOMAIN).catch(() => null)
-    }
+    if (this._domainPromise !== undefined) return this._domainPromise
+    const facility = this.ctx.get('storageDomain')
+    if (facility === undefined) return Promise.resolve(null)
+    this._domainPromise = facility.open(GROUP_DOMAIN).catch(() => {
+      this._domainPromise = undefined
+      return null
+    })
     return this._domainPromise
   }
 
@@ -205,6 +208,40 @@ class SkillPanelService extends TypertRemoteService {
     if (skills === undefined) return null
     const view = this.resolveView(sessionId)
     return skills.get(String(name), view === null ? {} : view)
+  }
+
+  /** True when a session id was supplied but cannot be resolved to a live agent. */
+  unresolvableSession(sessionId) {
+    return sessionId !== undefined && sessionId !== null && String(sessionId) !== ''
+      && this.resolveView(sessionId) === null
+  }
+
+  /**
+   * Whether a skill exists in the catalog the PANEL actually displays, using
+   * the same layered resolution as listDetailed (session view → merged live
+   * agents → global). Group membership is global data, so this check must not
+   * reject a skill that is visible in the list merely because the caller's
+   * session view cannot see it.
+   */
+  async catalogHasSkill(name, sessionId) {
+    const skills = this.ctx.get('skills')
+    if (skills === undefined) return true
+    const view = this.resolveView(sessionId)
+    if (view !== null) {
+      const def = await skills.get(String(name), view)
+      if (def !== undefined) return true
+    }
+    const agents = this.ctx.get('agents')
+    if (agents !== undefined) {
+      for (const agent of agents.list()) {
+        try {
+          if (agent === undefined || agent.session === undefined || agent.session.header === undefined) continue
+          const def = await skills.get(String(name), { cwd: agent.session.header.cwd, scope: agent })
+          if (def !== undefined) return true
+        } catch { /* one bad view must not kill the scan */ }
+      }
+    }
+    return (await skills.get(String(name), {})) !== undefined
   }
 
   /**
@@ -316,6 +353,9 @@ class SkillPanelService extends TypertRemoteService {
   async setInvocation(request) {
     const fs = this.ctx.get('fs')
     if (fs === undefined) return { ok: false, error: 'fs 服务不可用' }
+    // A session-addressed write must never silently fall back to the global
+    // skill layer when the session cannot be resolved (越权面).
+    if (this.unresolvableSession(request.sessionId)) return { ok: false, error: '会话不可用,已拒绝操作' }
     const wantModel = request.modelInvocable
     const wantUser = request.userInvocable
     if (typeof wantModel !== 'boolean' && typeof wantUser !== 'boolean') {
@@ -367,6 +407,9 @@ class SkillPanelService extends TypertRemoteService {
   async setDisabled(request) {
     const fs = this.ctx.get('fs')
     if (fs === undefined) return { ok: false, error: 'fs 服务不可用' }
+    // A session-addressed write must never silently fall back to the global
+    // skill layer when the session cannot be resolved (越权面).
+    if (this.unresolvableSession(request.sessionId)) return { ok: false, error: '会话不可用,已拒绝操作' }
     const disabled = request.disabled
     if (typeof disabled !== 'boolean') return { ok: false, error: '缺少 disabled 参数' }
     const def = await this.resolveDefinition(request.name, request.sessionId)
@@ -417,6 +460,9 @@ class SkillPanelService extends TypertRemoteService {
   async uninstall(request) {
     const subprocess = this.ctx.get('subprocess')
     if (subprocess === undefined) return { ok: false, error: 'subprocess 服务不可用' }
+    // A session-addressed delete must never silently fall back to the global
+    // skill layer when the session cannot be resolved (越权面).
+    if (this.unresolvableSession(request.sessionId)) return { ok: false, error: '会话不可用,已拒绝操作' }
     const def = await this.resolveDefinition(request.name, request.sessionId)
     if (def === undefined || def === null) return { ok: false, error: 'skill 不存在' }
     if (def.path === undefined || def.path === null || def.path === '') {
@@ -424,6 +470,17 @@ class SkillPanelService extends TypertRemoteService {
     }
     if (def.source === 'bundled') return { ok: false, error: '内置 skill 不可卸载' }
     const deleteTarget = /SKILL\.md$/i.test(def.path) ? dirname(def.path) : def.path
+    // Defense-in-depth for the PowerShell -Command path: refuse control
+    // characters (the single-quote escaping handles `'`, the only other
+    // shell-significant character inside a single-quoted literal).
+    let controlChar = false
+    for (let i = 0; i < deleteTarget.length; i++) {
+      const code = deleteTarget.charCodeAt(i)
+      if (code < 0x20 || code === 0x7f) { controlChar = true; break }
+    }
+    if (controlChar) {
+      return { ok: false, error: '路径包含不可打印字符,已拒绝删除' }
+    }
     const fs = this.ctx.get('fs')
     let observeTarget
     if (fs !== undefined) {
@@ -503,11 +560,23 @@ class SkillPanelService extends TypertRemoteService {
       : current.description
     if (newName !== name) {
       if (groupsTable.get(newName) !== undefined) return { ok: false, error: '组「' + newName + '」已存在' }
-      await groupsTable.put(newName, { description })
-      await groupsTable.delete(name)
-      const membershipTable = domain.table('membership')
-      for (const [skillName, gs] of membershipTable.entries()) {
-        if (gs.includes(name)) await membershipTable.put(skillName, gs.map((g) => (g === name ? newName : g)))
+      // One-shot migration: move the group row and every membership key. The
+      // storage domain has no transactions, so on failure roll back the new
+      // key (best-effort) and report — a half-moved group must not linger.
+      let moved = false
+      try {
+        await groupsTable.put(newName, { description })
+        moved = true
+        await groupsTable.delete(name)
+        const membershipTable = domain.table('membership')
+        for (const [skillName, gs] of membershipTable.entries()) {
+          if (gs.includes(name)) await membershipTable.put(skillName, gs.map((g) => (g === name ? newName : g)))
+        }
+      } catch (error) {
+        try {
+          if (moved) await groupsTable.delete(newName)
+        } catch { /* best-effort rollback */ }
+        return { ok: false, error: '重命名失败: ' + String((error && error.message) || error) }
       }
     } else {
       await groupsTable.put(name, { description })
@@ -545,8 +614,8 @@ class SkillPanelService extends TypertRemoteService {
     if (domain === null) return { ok: false, error: 'storage 服务不可用' }
     if (domain.table('groups').get(name) === undefined) return { ok: false, error: '组「' + name + '」不存在' }
     if (this.ctx.get('skills') !== undefined) {
-      const def = await this.resolveDefinition(skillName, request === undefined || request === null ? undefined : request.sessionId)
-      if (def === undefined || def === null) return { ok: false, error: 'skill「' + skillName + '」不存在' }
+      const found = await this.catalogHasSkill(skillName, request === undefined || request === null ? undefined : request.sessionId)
+      if (!found) return { ok: false, error: 'skill「' + skillName + '」不在当前可见目录中' }
     }
     const membershipTable = domain.table('membership')
     const list = membershipTable.get(skillName) ?? []
