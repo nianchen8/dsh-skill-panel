@@ -4,13 +4,22 @@ window.__ModuleLoader__.load({
     const React = require("react")
 
     const CSS = `
+/* Sidebar foot: the owner renders sidebar.footer.action entries in a ROW, but
+   every official entry in this slot is a full-width bar (dsh-client-ui-cordis's
+   CordisPanel badge: width:100%; height:49px; border-radius:12px). Stacking the
+   container is the design intent — a row squeezes several full-width entries
+   side by side into an ugly "parallel" strip. The owner's class name
+   (hHd-Xa_footerActions) contains "footerActions" across current dsh releases,
+   so this also restores the correct stacked layout for sibling entries
+   (cordis-panel, mcp-panel); re-verify after a dsh upgrade. */
+[class*="footerActions"] { flex-direction: column; }
 .skp-btn {
   display: flex; align-items: center; gap: 8px;
-  height: 36px; padding: 0 10px;
+  height: 40px; padding: 0 10px; width: 100%;
   background: transparent; border: none; cursor: pointer;
   color: var(--dsw-alias-label-secondary);
   font: inherit; font-size: 13px;
-  border-radius: 8px;
+  border-radius: 12px;
 }
 .skp-btn-rail {
   width: 36px; height: 36px;
@@ -20,7 +29,7 @@ window.__ModuleLoader__.load({
 }
 .skp-btn-rail:hover { color: var(--dsw-alias-label-primary); }
 .skp-btn-rail.skp-btn-active { color: var(--dsw-alias-brand-primary); }
-.skp-btn:hover { background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); }
+.skp-btn:hover { background: var(--dsw-alias-interactive-bg-hover-solid); color: var(--dsw-alias-label-primary); }
 .skp-btn-active { color: var(--dsw-alias-brand-primary); }
 .skp-btn svg { flex: none; }
 .skp-btn-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
