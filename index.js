@@ -297,26 +297,29 @@ class SkillPanelService extends TypertRemoteService {
       if (agent !== undefined && agent.session !== undefined && agent.session.header !== undefined) {
         const view = viewOf(agent)
         const snap = await skills.snapshot(view)
-        return { skills: await withPaths(snap.skills, view) }
+        // A preset with no skill providers (e.g. the shipped `minimal` preset)
+        // yields an empty scoped view; fall through to the wider merge below
+        // instead of reporting a bare empty list.
+        if (snap.skills.length > 0) {
+          return { skills: await withPaths(snap.skills, view) }
+        }
       }
     }
 
     // 2. Merge across every live agent, deduped by name (keeping each view).
     if (agents !== undefined) {
       const seen = new Map()
-      let any = false
       for (const a of agents.list()) {
         try {
           if (a === undefined || a.session === undefined || a.session.header === undefined) continue
           const view = viewOf(a)
           const snap = await skills.snapshot(view)
-          any = true
           for (const s of snap.skills) {
             if (!seen.has(s.name)) seen.set(s.name, { entry: s, view })
           }
         } catch { /* one bad view must not kill the merge */ }
       }
-      if (any) {
+      if (seen.size > 0) {
         return {
           skills: await Promise.all(Array.from(seen.values()).map(({ entry, view }) =>
             withPaths([entry], view).then((rows) => rows[0]),
