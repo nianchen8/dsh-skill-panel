@@ -290,7 +290,7 @@ window.__ModuleLoader__.load({
 .skp-chips, .skp-search, .skp-toolbar, .skp-row, .skp-notice, .skp-empty, .skp-err {
   max-width: none; margin-left: 0; margin-right: 0;
 }
-.skp-search { max-width: 640px; }
+.skp-search { max-width: 640px; flex: none; }
 .skp-row {
   max-width: none; margin: 8px 0 0;
   border: 1px solid color-mix(in srgb, var(--dsw-alias-border-l1) 62%, transparent);
